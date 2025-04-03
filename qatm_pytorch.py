@@ -76,7 +76,7 @@ class ImageDataset(torch.utils.data.Dataset):
 
 
 template_dir = 'template/'
-image_path = 'sample/sample1.jpg'
+image_path = 'sample/electrical_plan.png'
 dataset = ImageDataset(Path(template_dir), image_path, thresh_csv='thresh_template.csv')
 
 
@@ -251,7 +251,7 @@ def nms_multi(scores, w_array, h_array, thresh_list):
         else:
             dots = np.concatenate([dots, dot], axis=1)
             dots_indices = np.concatenate([dots_indices, np.ones(dot.shape[-1]) * index], axis=0)
-    dots_indices = dots_indices.astype(np.int)
+    dots_indices = dots_indices.astype(int)
     x1 = dots[1] - w_array[dots_indices]//2
     x2 = x1 + w_array[dots_indices]
     y1 = dots[0] - h_array[dots_indices]//2
@@ -340,7 +340,7 @@ def run_multi_sample(model, dataset):
     return np.squeeze(np.array(scores), axis=1), np.array(w_array), np.array(h_array), thresh_list
 
 
-model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=25, use_cuda=True)
+model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=25, use_cuda=False)
 
 scores, w_array, h_array, thresh_list = run_multi_sample(model, dataset)
 
