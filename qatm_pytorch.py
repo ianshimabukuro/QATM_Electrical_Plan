@@ -26,6 +26,8 @@ import torchvision
 from torchvision import models, transforms, utils
 import copy
 from utils import *
+import networkx as nx
+import itertools
 # %matplotlib inline
 
 # # CONVERT IMAGE TO TENSOR
@@ -284,7 +286,7 @@ def nms_multi(scores, w_array, h_array, thresh_list):
         dots_indices = dots_indices[inds + 1]
         
     boxes = np.array([[x1[keep], y1[keep]], [x2[keep], y2[keep]]]).transpose(2,0,1)
-    return boxes, np.array(keep_index)
+    return boxes, np.array(keep_index), dots, keep
 
 
 def plot_result_multi(image_raw, boxes, indices, show=False, save_name=None, color_list=None):
@@ -344,9 +346,64 @@ model = CreateModel(model=models.vgg19(pretrained=True).features, alpha=25, use_
 
 scores, w_array, h_array, thresh_list = run_multi_sample(model, dataset)
 
-boxes, indices = nms_multi(scores, w_array, h_array, thresh_list)
-
+boxes, indices, dots, keep = nms_multi(scores, w_array, h_array, thresh_list)
+print(dots.shape)
 d_img = plot_result_multi(dataset.image_raw, boxes, indices, show=True, save_name='result_sample.png')
 
-plt.imshow(scores[2])
+#plt.imshow(scores[2])
 
+
+#Visualization
+
+
+
+
+# === Step 1: Clean (x, y) dot coordinates ===
+# Convert to Python int and round to reduce density
+
+print(keep)
+
+# Only use the pixel coordinates corresponding to final boxes kept
+dots_array = [ (int(dots[1][i]), int(dots[0][i])) for i in keep ]  
+
+
+
+# === Step 2: Extract unique x and y ===
+x_coords = sorted(set(x for x, y in dots_array))
+y_coords = sorted(set(y for x, y in dots_array))
+
+# === Step 3: Generate Hanan grid points ===
+hanan_points = list(itertools.product(x_coords, y_coords))  # All (x, y) combos
+
+# === Step 4: Build 2D grid graph with real coordinates ===
+index_to_coord = {(i, j): (x, y) for i, x in enumerate(x_coords) for j, y in enumerate(y_coords)}
+G = nx.grid_2d_graph(len(x_coords), len(y_coords))
+G = nx.relabel_nodes(G, index_to_coord)
+
+# === Step 5: Mark detected dot nodes ===
+for point in G.nodes():
+    G.nodes[point]['is_dot'] = point in dots_array
+
+# === Step 6: Set up for drawing ===
+pos = {node: node for node in G.nodes()}  # (x, y) layout
+node_colors = [
+    'red' if G.nodes[n].get('is_dot') else 'lightgray'
+    for n in G.nodes()
+]
+
+# === Step 7: Dynamic figure size ===
+x_range = max(x_coords) - min(x_coords) if x_coords else 1
+y_range = max(y_coords) - min(y_coords) if y_coords else 1
+scale = 0.05
+figsize = (max(4, x_range * scale), max(4, y_range * scale))  # minimum figure size
+
+plt.figure(figsize=figsize)
+nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=5)
+nx.draw_networkx_edges(G, pos, edge_color='black', width=0.1)
+
+plt.gca().invert_yaxis()
+plt.gca().set_aspect('equal', adjustable='box')
+plt.axis('off')
+plt.tight_layout()
+plt.title("Hanan Grid: Red = Detections, Gray = Grid", fontsize=12)
+plt.show()
